@@ -379,15 +379,6 @@ config = {
 
 ---
 
-## 📈 Performance Benchmarks
-
-| Dataset | Task | KAN-GNN Acc | Standard GNN | Improvement |
-|---------|------|-------------|--------------|-------------|
-| Tumor IMC | Cell Type (8 classes) | **89.3%** | 84.1% | +5.2% |
-| CODEX Tissue | State (5 classes) | **92.7%** | 88.9% | +3.8% |
-| scRNA-seq Spatial | Differentiation | **87.5%** | 83.2% | +4.3% |
-
-*Benefits beyond accuracy: interpretability enables biological discovery*
 
 ---
 
