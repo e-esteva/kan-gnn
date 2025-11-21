@@ -1865,7 +1865,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Issues**: [GitHub Issues](https://github.com/e-esteva/kan-gnn/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/e-esteva/kan-gnn/discussions)
-- **Email**: your.email@institution.edu
+- **Email**: Eduardo.Esteva@nyulangone.org
 
 ---
 
