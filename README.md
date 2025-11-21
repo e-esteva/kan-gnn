@@ -34,7 +34,7 @@ Traditional GNNs use black-box MLPs to aggregate neighbor information. KAN-GNN u
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/kan-gnn.git
+git clone https://github.com/e-esteva/kan-gnn.git
 cd kan-gnn
 
 # Install dependencies
