@@ -575,18 +575,6 @@ class HybridModel(nn.Module):
 - **100K-1M cells**: Hybrid model (GraphSAGE + KAN classifier)
 - **>1M cells**: GraphSAGE with subgraph KAN analysis
 
-### Performance Comparison on Cell Classification
-
-| Model | Accuracy | Training Time | Interpretability Score | Parameters |
-|-------|----------|---------------|----------------------|------------|
-| **KAN-GNN** | **89.3%** | 45 min | ⭐⭐⭐⭐⭐ (5/5) | 142K |
-| GCN | 84.1% | 15 min | ⭐ (1/5) | 98K |
-| GAT (8 heads) | 87.2% | 52 min | ⭐⭐ (2/5) | 186K |
-| GraphSAGE | 85.7% | 22 min | ⭐ (1/5) | 105K |
-| GIN | 86.9% | 28 min | ⭐ (1/5) | 128K |
-
-*Benchmark: Tumor IMC dataset, 8-class cell type classification, 50 biomarkers, ~10K cells*
-
 ### Code Comparison: Extract Biological Insight
 
 ```python
@@ -648,7 +636,7 @@ pip install numpy pandas scipy scikit-learn matplotlib seaborn tqdm cellpose
 
 # Clone and install KAN-GNN
 cd $HOME/projects
-git clone https://github.com/yourusername/kan-gnn.git
+git clone https://github.com/e-esteva/kan-gnn.git
 cd kan-gnn
 pip install -e .
 ```
@@ -1407,438 +1395,6 @@ This reduces memory by ~40% with minimal accuracy loss!
 
 *Note: Gradient checkpointing trades 50% more time for 50% less memory*
 
----
-
-## 🐳 Docker & Singularity Deployment
-
-### Docker
-
-#### Quick Start with Docker
-
-```bash
-# Pull pre-built image (when available)
-docker pull yourusername/kan-gnn:latest
-
-# Or build locally
-docker build -t kan-gnn:latest .
-
-# Run interactive session
-docker run -it --gpus all -v $(pwd)/data:/workspace/data kan-gnn:latest
-
-# Run training script
-docker run --gpus all -v $(pwd)/data:/workspace/data \
-    kan-gnn:latest python train.py --data /workspace/data/cells.csv
-```
-
-#### Dockerfile
-
-Create `Dockerfile` in your project root:
-
-```dockerfile
-# Use NVIDIA CUDA base image for GPU support
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
-
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0+PTX"
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3-pip \
-    git \
-    wget \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /workspace
-
-# Install Python dependencies
-RUN pip3 install --no-cache-dir \
-    torch==2.1.0 \
-    torchvision==0.16.0 \
-    torchaudio==2.1.0 \
-    --index-url https://download.pytorch.org/whl/cu118
-
-# Install PyTorch Geometric
-RUN pip3 install --no-cache-dir \
-    torch-geometric==2.4.0 \
-    torch-scatter \
-    torch-sparse \
-    torch-cluster \
-    torch-spline-conv \
-    -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-
-# Install additional dependencies
-RUN pip3 install --no-cache-dir \
-    numpy==1.24.3 \
-    pandas==2.0.3 \
-    scipy==1.11.2 \
-    scikit-learn==1.3.0 \
-    matplotlib==3.7.2 \
-    seaborn==0.12.2 \
-    cellpose==2.2.3 \
-    tqdm==4.66.1
-
-# Copy KAN-GNN code
-COPY . /workspace/kan-gnn/
-WORKDIR /workspace/kan-gnn
-
-# Set Python path
-ENV PYTHONPATH=/workspace/kan-gnn:$PYTHONPATH
-
-# Default command
-CMD ["/bin/bash"]
-```
-
-#### Docker Compose (for multi-container setup)
-
-Create `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  kan-gnn:
-    build: .
-    image: kan-gnn:latest
-    container_name: kan-gnn-training
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - CUDA_VISIBLE_DEVICES=0
-    volumes:
-      - ./data:/workspace/data
-      - ./outputs:/workspace/outputs
-      - ./models:/workspace/models
-    shm_size: '8gb'  # Shared memory for data loading
-    command: python train.py --config configs/tumor_imc.yaml
-    
-  jupyter:
-    build: .
-    image: kan-gnn:latest
-    container_name: kan-gnn-jupyter
-    runtime: nvidia
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./notebooks:/workspace/notebooks
-      - ./data:/workspace/data
-    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
-```
-
-#### Usage Examples
-
-```bash
-# Build and run
-docker-compose up --build
-
-# Run specific service
-docker-compose run kan-gnn python train.py
-
-# Interactive Jupyter
-docker-compose up jupyter
-# Navigate to http://localhost:8888
-
-# Run with specific GPU
-docker run --gpus '"device=0"' -v $(pwd)/data:/workspace/data kan-gnn:latest
-
-# Multi-GPU training
-docker run --gpus all -v $(pwd)/data:/workspace/data \
-    kan-gnn:latest python train.py --gpus 0,1,2,3
-```
-
----
-
-### Singularity
-
-Singularity is preferred for HPC clusters (no root required, better security).
-
-#### Build Singularity Container
-
-**Option 1: From Docker image**
-```bash
-# Convert Docker image to Singularity
-singularity build kan-gnn.sif docker://yourusername/kan-gnn:latest
-
-# Or from local Docker daemon
-singularity build kan-gnn.sif docker-daemon://kan-gnn:latest
-```
-
-**Option 2: From definition file**
-
-Create `kan-gnn.def`:
-
-```singularity
-Bootstrap: docker
-From: nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
-
-%post
-    # Update and install dependencies
-    apt-get update && apt-get install -y \
-        python3.10 \
-        python3-pip \
-        git \
-        wget \
-        libgl1-mesa-glx \
-        libglib2.0-0
-    
-    # Install PyTorch
-    pip3 install torch==2.1.0 torchvision==0.16.0 \
-        --index-url https://download.pytorch.org/whl/cu118
-    
-    # Install PyTorch Geometric
-    pip3 install torch-geometric==2.4.0 \
-        torch-scatter torch-sparse torch-cluster torch-spline-conv \
-        -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-    
-    # Install additional dependencies
-    pip3 install numpy pandas scipy scikit-learn matplotlib \
-        seaborn cellpose tqdm
-    
-    # Clone KAN-GNN repository
-    cd /opt
-    git clone https://github.com/yourusername/kan-gnn.git
-    
-    # Cleanup
-    apt-get clean
-    rm -rf /var/lib/apt/lists/*
-
-%environment
-    export PYTHONPATH=/opt/kan-gnn:$PYTHONPATH
-    export CUDA_HOME=/usr/local/cuda
-
-%runscript
-    echo "KAN-GNN Container"
-    echo "Usage: singularity run kan-gnn.sif python train.py"
-    exec "$@"
-
-%labels
-    Author YourName
-    Version 1.0.0
-    Description KAN-GNN for interpretable cell graph analysis
-
-%help
-    This container runs KAN-GNN for spatial cell biology analysis.
-    
-    Examples:
-        # Interactive shell
-        singularity shell --nv kan-gnn.sif
-        
-        # Run training
-        singularity exec --nv kan-gnn.sif python train.py
-        
-        # With mounted data
-        singularity exec --nv -B /data:/mnt kan-gnn.sif python train.py --data /mnt
-```
-
-Build the container:
-```bash
-# Requires sudo/root on build machine
-sudo singularity build kan-gnn.sif kan-gnn.def
-
-# Or use Singularity remote builder (no sudo needed)
-singularity build --remote kan-gnn.sif kan-gnn.def
-```
-
-#### Using Singularity on HPC
-
-```bash
-# Interactive session with GPU
-singularity shell --nv kan-gnn.sif
-
-# Execute command
-singularity exec --nv kan-gnn.sif python train.py --data ./data/cells.csv
-
-# Bind mount directories
-singularity exec --nv \
-    -B /scratch/project/data:/data \
-    -B /scratch/project/outputs:/outputs \
-    kan-gnn.sif python train.py --data /data --output /outputs
-
-# Run as batch job
-singularity exec --nv kan-gnn.sif python train.py --config config.yaml
-```
-
-#### SLURM Batch Script
-
-Create `run_kan_gnn.sh`:
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=kan-gnn
-#SBATCH --output=logs/kan_gnn_%j.out
-#SBATCH --error=logs/kan_gnn_%j.err
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=24:00:00
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:1
-
-# Load modules (if needed)
-module load singularity
-
-# Set up environment
-export SINGULARITY_CACHEDIR=$SCRATCH/.singularity
-export SINGULARITY_TMPDIR=$SCRATCH/tmp
-
-# Run KAN-GNN
-singularity exec --nv \
-    -B $SCRATCH/data:/data \
-    -B $SCRATCH/outputs:/outputs \
-    /path/to/kan-gnn.sif \
-    python /opt/kan-gnn/train.py \
-        --data /data/tumor_cells.csv \
-        --output /outputs \
-        --hidden-channels 64 \
-        --num-layers 3 \
-        --epochs 200 \
-        --grid-size 5
-
-echo "Job completed!"
-```
-
-Submit:
-```bash
-sbatch run_kan_gnn.sh
-```
-
-#### Multi-GPU SLURM
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=kan-gnn-multi
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:4
-#SBATCH --mem=256G
-#SBATCH --time=48:00:00
-
-module load singularity
-
-# Run with PyTorch DDP
-singularity exec --nv \
-    -B $SCRATCH/data:/data \
-    kan-gnn.sif \
-    python -m torch.distributed.launch \
-        --nproc_per_node=4 \
-        train_distributed.py \
-        --data /data
-```
-
----
-
-### Container Best Practices
-
-#### 1. **GPU Memory Management**
-```bash
-# Monitor GPU usage inside container
-docker run --gpus all kan-gnn:latest nvidia-smi
-
-# Limit GPU memory (useful for multi-user systems)
-docker run --gpus all --memory="32g" --memory-swap="32g" kan-gnn:latest
-```
-
-#### 2. **Data Persistence**
-```bash
-# Always bind mount data directories
-# Don't store data inside containers!
-
-# Docker
-docker run -v /host/data:/container/data kan-gnn:latest
-
-# Singularity
-singularity exec -B /host/data:/container/data kan-gnn.sif python train.py
-```
-
-#### 3. **Reproducibility**
-```dockerfile
-# Pin all versions in Dockerfile
-RUN pip install --no-cache-dir \
-    torch==2.1.0 \
-    torch-geometric==2.4.0 \
-    numpy==1.24.3  # Not just "numpy"
-```
-
-#### 4. **Container Registry**
-```bash
-# Push to Docker Hub
-docker tag kan-gnn:latest yourusername/kan-gnn:1.0.0
-docker push yourusername/kan-gnn:1.0.0
-
-# Push to GitHub Container Registry
-docker tag kan-gnn:latest ghcr.io/yourusername/kan-gnn:1.0.0
-docker push ghcr.io/yourusername/kan-gnn:1.0.0
-
-# Pull on any system
-docker pull yourusername/kan-gnn:1.0.0
-singularity pull docker://yourusername/kan-gnn:1.0.0
-```
-
-#### 5. **Development Workflow**
-```bash
-# Mount code for live development
-docker run -it --gpus all \
-    -v $(pwd):/workspace/kan-gnn \
-    -v $(pwd)/data:/data \
-    kan-gnn:latest /bin/bash
-
-# Changes to code are immediately reflected
-# No need to rebuild container during development
-```
-
----
-
-### Troubleshooting Containers
-
-#### Docker Issues
-
-**Problem**: `docker: Error response from daemon: could not select device driver`
-
-**Solution**: Install nvidia-docker2
-```bash
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-    sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-
-sudo apt-get update && sudo apt-get install -y nvidia-docker2
-sudo systemctl restart docker
-```
-
-**Problem**: `CUDA out of memory` in container
-
-**Solution**: Limit PyTorch memory
-```python
-# Inside container
-import torch
-torch.cuda.set_per_process_memory_fraction(0.8, 0)  # Use 80% of GPU memory
-```
-
-#### Singularity Issues
-
-**Problem**: `FATAL: container creation failed: mount /proc/self/fd/3->/usr/bin/nvidia-smi error`
-
-**Solution**: Use `--nv` flag
-```bash
-singularity exec --nv kan-gnn.sif python train.py  # Not just "singularity exec"
-```
-
-**Problem**: `permission denied` when binding directories
-
-**Solution**: Ensure directories exist and are readable
-```bash
-# On HPC, use scratch space
-mkdir -p $SCRATCH/data
-singularity exec -B $SCRATCH/data:/data kan-gnn.sif python train.py
-```
-
----
 
 ## 🛠️ Troubleshooting
 
@@ -2191,13 +1747,13 @@ data.y = data.y[non_isolated]
 
 ### 🐛 Still Having Issues?
 
-1. **Check existing issues**: [GitHub Issues](https://github.com/yourusername/kan-gnn/issues)
+1. **Check existing issues**: [GitHub Issues](https://github.com/e-esteva/kan-gnn/issues)
 2. **Open a new issue** with:
    - Python/PyTorch/PyG versions
    - Full error traceback
    - Minimal reproducible example
    - Data shape information
-3. **Join discussions**: [GitHub Discussions](https://github.com/yourusername/kan-gnn/discussions)
+3. **Join discussions**: [GitHub Discussions](https://github.com/e-esteva/kan-gnn/discussions)
 
 ---
 
@@ -2262,11 +1818,11 @@ edge_features = dataset.graph_builder.add_edge_features(
 If you use KAN-GNN in your research, please cite:
 
 ```bibtex
-@software{kan_gnn2024,
+@software{kan_gnn2025,
   title = {KAN-GNN: Kolmogorov-Arnold Networks for Interpretable Cell Graph Analysis},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/yourusername/kan-gnn}
+  author = {Eduardo Esteva},
+  year = {2025},
+  url = {https://github.com/e-esteva/kan-gnn}
 }
 ```
 
@@ -2307,15 +1863,15 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 📧 Contact
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/kan-gnn/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/kan-gnn/discussions)
+- **Issues**: [GitHub Issues](https://github.com/e-esteva/kan-gnn/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/e-esteva/kan-gnn/discussions)
 - **Email**: your.email@institution.edu
 
 ---
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/kan-gnn&type=Date)](https://star-history.com/#yourusername/kan-gnn&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=e-esteva/kan-gnn&type=Date)](https://star-history.com/#e-esteva/kan-gnn&Date)
 
 ---
 
